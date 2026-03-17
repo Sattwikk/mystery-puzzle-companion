@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
@@ -233,6 +234,8 @@ class _StepCardWithAnimationState extends State<_StepCardWithAnimation>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
   late final Animation<double> _animation;
+  Timer? _timer;
+  int? _remaining;
 
   @override
   void initState() {
@@ -245,10 +248,28 @@ class _StepCardWithAnimationState extends State<_StepCardWithAnimation>
       CurvedAnimation(parent: _controller, curve: Curves.easeOut),
     );
     _controller.forward();
+    if (widget.timeLimitSeconds != null) {
+      _remaining = widget.timeLimitSeconds;
+      _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+        if (!mounted) {
+          timer.cancel();
+          return;
+        }
+        setState(() {
+          if (_remaining != null && _remaining! > 0) {
+            _remaining = _remaining! - 1;
+          }
+          if (_remaining != null && _remaining == 0) {
+            timer.cancel();
+          }
+        });
+      });
+    }
   }
 
   @override
   void dispose() {
+    _timer?.cancel();
     _controller.dispose();
     super.dispose();
   }
@@ -272,8 +293,21 @@ class _StepCardWithAnimationState extends State<_StepCardWithAnimation>
               if (widget.timeLimitSeconds != null) ...[
                 const SizedBox(height: 8),
                 Text(
-                  'Time limit: ${widget.timeLimitSeconds}s',
-                  style: Theme.of(context).textTheme.bodyMedium,
+                  _remaining != null && _remaining! > 0
+                      ? 'Time left: ${_remaining}s'
+                      : 'Time is up',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: _remaining == 0
+                            ? Theme.of(context).colorScheme.error
+                            : null,
+                      ),
+                ),
+                const SizedBox(height: 4),
+                LinearProgressIndicator(
+                  value: (_remaining != null && widget.timeLimitSeconds != null)
+                      ? _remaining!.clamp(0, widget.timeLimitSeconds!) /
+                          widget.timeLimitSeconds!
+                      : 0,
                 ),
               ],
             ],
