@@ -101,11 +101,42 @@ class MissionDetailScreen extends ConsumerWidget {
                                     child: Text('${s.orderIndex + 1}'),
                                   ),
                                   title: Text(s.title),
-                                  subtitle: Text(
-                                    s.timeLimitSeconds != null
-                                        ? '${s.timeLimitSeconds}s'
-                                        : 'No time limit',
-                                  ),
+                                subtitle: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      s.timeLimitSeconds != null
+                                          ? '${s.timeLimitSeconds}s limit'
+                                          : 'No time limit',
+                                    ),
+                                    if (s.description != null &&
+                                        s.description!.trim().isNotEmpty)
+                                      Padding(
+                                        padding: const EdgeInsets.only(top: 4),
+                                        child: Text(
+                                          s.description!.trim(),
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    if (s.clueText != null &&
+                                        s.clueText!.trim().isNotEmpty)
+                                      Padding(
+                                        padding: const EdgeInsets.only(top: 4),
+                                        child: Text(
+                                          'Hint available',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall
+                                              ?.copyWith(
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .secondary,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
                                 ),
                               ),
                             )

@@ -15,7 +15,7 @@ class DatabaseHelper {
 
   static Database? _db;
   static const String _dbName = 'mystery_puzzle.db';
-  static const int _dbVersion = 1;
+  static const int _dbVersion = 2;
 
   Future<Database> get database async {
     if (_db != null && _db!.isOpen) return _db!;
@@ -30,6 +30,7 @@ class DatabaseHelper {
       path,
       version: _dbVersion,
       onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
     );
   }
 
@@ -77,6 +78,15 @@ class DatabaseHelper {
       )
     ''');
     await db.execute('''
+      CREATE TABLE session_clues (
+        session_id TEXT NOT NULL,
+        step_id TEXT NOT NULL,
+        clue_text TEXT,
+        discovered_at TEXT NOT NULL,
+        PRIMARY KEY (session_id, step_id)
+      )
+    ''');
+    await db.execute('''
       CREATE TABLE achievements (
         id TEXT PRIMARY KEY,
         title TEXT NOT NULL,
@@ -90,6 +100,22 @@ class DatabaseHelper {
         'CREATE INDEX idx_steps_mission ON mission_steps(mission_id)');
     await db.execute('CREATE INDEX idx_sessions_mission ON game_sessions(mission_id)');
     await db.execute('CREATE INDEX idx_sessions_team ON game_sessions(team_id)');
+    await db.execute('CREATE INDEX idx_session_clues_session ON session_clues(session_id)');
+  }
+
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS session_clues (
+          session_id TEXT NOT NULL,
+          step_id TEXT NOT NULL,
+          clue_text TEXT,
+          discovered_at TEXT NOT NULL,
+          PRIMARY KEY (session_id, step_id)
+        )
+      ''');
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_session_clues_session ON session_clues(session_id)');
+    }
   }
 
   Future<void> close() async {
@@ -247,6 +273,50 @@ class DatabaseHelper {
       where: 'id = ?',
       whereArgs: [session.id],
     );
+  }
+
+  // --- Session clues / hint tracking ---
+  Future<List<String>> getDiscoveredStepIds(String sessionId) async {
+    final db = await database;
+    final maps = await db.query(
+      'session_clues',
+      columns: ['step_id'],
+      where: 'session_id = ?',
+      whereArgs: [sessionId],
+    );
+    return maps.map((m) => m['step_id'] as String).toList();
+  }
+
+  /// Records that a clue was used/unlocked for a given mission step.
+  /// Returns true if this is the first time for this step (and hints_used was incremented).
+  Future<bool> recordClueUsage({
+    required String sessionId,
+    required String stepId,
+    required String clueText,
+  }) async {
+    final db = await database;
+    return db.transaction((txn) async {
+      final existing = await txn.query(
+        'session_clues',
+        columns: ['step_id'],
+        where: 'session_id = ? AND step_id = ?',
+        whereArgs: [sessionId, stepId],
+        limit: 1,
+      );
+      if (existing.isNotEmpty) return false;
+
+      await txn.insert('session_clues', {
+        'session_id': sessionId,
+        'step_id': stepId,
+        'clue_text': clueText,
+        'discovered_at': DateTime.now().toIso8601String(),
+      });
+      await txn.rawUpdate(
+        'UPDATE game_sessions SET hints_used = hints_used + 1 WHERE id = ?',
+        [sessionId],
+      );
+      return true;
+    });
   }
 
   /// Leaderboard: completed sessions with best times (success = 1), ordered by elapsed time then hints.

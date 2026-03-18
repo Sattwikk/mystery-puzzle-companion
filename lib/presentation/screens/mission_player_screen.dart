@@ -5,6 +5,7 @@ import 'package:uuid/uuid.dart';
 import '../../core/di/providers.dart';
 import '../../core/services/notification_service.dart';
 import '../../data/models/game_session.dart';
+import '../../data/models/mission_step.dart';
 import '../providers/missions_provider.dart';
 import '../providers/sessions_provider.dart';
 import '../providers/teams_provider.dart';
@@ -22,8 +23,20 @@ class MissionPlayerScreen extends ConsumerStatefulWidget {
 class _MissionPlayerScreenState extends ConsumerState<MissionPlayerScreen> {
   String? _selectedMissionId;
   GameSession? _session;
+  final Set<String> _discoveredStepIds = {};
 
   String? get _missionId => widget.missionId ?? _selectedMissionId;
+
+  Future<void> _hydrateDiscoveredClues(String sessionId) async {
+    final repo = ref.read(sessionRepositoryProvider);
+    final stepIds = await repo.getDiscoveredStepIds(sessionId);
+    if (!mounted) return;
+    setState(() {
+      _discoveredStepIds
+        ..clear()
+        ..addAll(stepIds);
+    });
+  }
 
   Future<void> _startSession(String teamId) async {
     final missionId = _missionId!;
@@ -39,6 +52,39 @@ class _MissionPlayerScreenState extends ConsumerState<MissionPlayerScreen> {
     if (mounted) {
       setState(() => _session = session);
       ref.invalidate(sessionsListProvider);
+    }
+    await _hydrateDiscoveredClues(session.id);
+  }
+
+  Future<void> _useHintForStep(MissionStep step) async {
+    if (_session == null) return;
+    final clue = step.clueText?.trim();
+    if (clue == null || clue.isEmpty) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No clue available for this step.')),
+        );
+      }
+      return;
+    }
+    if (_discoveredStepIds.contains(step.id)) return;
+
+    final repo = ref.read(sessionRepositoryProvider);
+    final ok = await repo.recordClueUsage(
+      sessionId: _session!.id,
+      stepId: step.id,
+      clueText: clue,
+    );
+    if (!ok) return;
+
+    if (mounted) {
+      setState(() {
+        _discoveredStepIds.add(step.id);
+        _session = _session!.copyWith(hintsUsed: _session!.hintsUsed + 1);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Clue unlocked!')),
+      );
     }
   }
 
@@ -84,8 +130,11 @@ class _MissionPlayerScreenState extends ConsumerState<MissionPlayerScreen> {
     if (_session != null) {
       return _PlayView(
         session: _session!,
+        discoveredStepIds: _discoveredStepIds,
+        hintsUsed: _session!.hintsUsed,
         onNextStep: _goToNextStep,
         onComplete: _completeSession,
+        onUseHintForStep: _useHintForStep,
       );
     }
 
@@ -159,11 +208,17 @@ class _PlayView extends ConsumerWidget {
     required this.session,
     required this.onNextStep,
     required this.onComplete,
+    required this.discoveredStepIds,
+    required this.hintsUsed,
+    required this.onUseHintForStep,
   });
 
   final GameSession session;
   final VoidCallback onNextStep;
   final VoidCallback onComplete;
+  final Set<String> discoveredStepIds;
+  final int hintsUsed;
+  final Future<void> Function(MissionStep step) onUseHintForStep;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -195,7 +250,12 @@ class _PlayView extends ConsumerWidget {
                   child: _StepCardWithAnimation(
                     key: ValueKey(index),
                     stepTitle: step.title,
+                    stepDescription: step.description,
                     timeLimitSeconds: step.timeLimitSeconds,
+                    clueText: step.clueText,
+                    isClueDiscovered: discoveredStepIds.contains(step.id),
+                    hintsUsed: hintsUsed,
+                    onUseHintForStep: () => onUseHintForStep(step),
                   ),
                 ),
                 const Spacer(),
@@ -220,11 +280,21 @@ class _StepCardWithAnimation extends StatefulWidget {
   const _StepCardWithAnimation({
     super.key,
     required this.stepTitle,
+    this.stepDescription,
     this.timeLimitSeconds,
+    this.clueText,
+    required this.isClueDiscovered,
+    required this.hintsUsed,
+    this.onUseHintForStep,
   });
 
   final String stepTitle;
+  final String? stepDescription;
   final int? timeLimitSeconds;
+  final String? clueText;
+  final bool isClueDiscovered;
+  final int hintsUsed;
+  final Future<void> Function()? onUseHintForStep;
 
   @override
   State<_StepCardWithAnimation> createState() => _StepCardWithAnimationState();
@@ -236,6 +306,7 @@ class _StepCardWithAnimationState extends State<_StepCardWithAnimation>
   late final Animation<double> _animation;
   Timer? _timer;
   int? _remaining;
+  bool _hintBusy = false;
 
   @override
   void initState() {
@@ -276,6 +347,7 @@ class _StepCardWithAnimationState extends State<_StepCardWithAnimation>
 
   @override
   Widget build(BuildContext context) {
+    final clue = widget.clueText?.trim();
     return FadeTransition(
       opacity: _animation,
       child: Card(
@@ -290,6 +362,14 @@ class _StepCardWithAnimationState extends State<_StepCardWithAnimation>
                       fontWeight: FontWeight.bold,
                     ),
               ),
+              if (widget.stepDescription != null &&
+                  widget.stepDescription!.trim().isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Text(
+                  widget.stepDescription!.trim(),
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ],
               if (widget.timeLimitSeconds != null) ...[
                 const SizedBox(height: 8),
                 Text(
@@ -308,6 +388,54 @@ class _StepCardWithAnimationState extends State<_StepCardWithAnimation>
                       ? _remaining!.clamp(0, widget.timeLimitSeconds!) /
                           widget.timeLimitSeconds!
                       : 0,
+                ),
+              ],
+              if (clue != null && clue.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Chip(
+                      label: Text('Hints used: ${widget.hintsUsed}'),
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                    ),
+                    if (!widget.isClueDiscovered)
+                      OutlinedButton.icon(
+                        onPressed: _hintBusy || widget.onUseHintForStep == null
+                            ? null
+                            : () async {
+                                setState(() => _hintBusy = true);
+                                try {
+                                  await widget.onUseHintForStep!();
+                                } finally {
+                                  if (mounted) setState(() => _hintBusy = false);
+                                }
+                              },
+                        icon: const Icon(Icons.lightbulb_outline),
+                        label: const Text('Use Hint'),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 250),
+                  child: widget.isClueDiscovered
+                      ? Container(
+                          key: const ValueKey('clue_on'),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            color: Theme.of(context).colorScheme.secondary
+                                .withValues(alpha: 0.14),
+                          ),
+                          child: Text(
+                            clue,
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                        )
+                      : const SizedBox.shrink(
+                          key: ValueKey('clue_off'),
+                        ),
                 ),
               ],
             ],

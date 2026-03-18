@@ -15,4 +15,17 @@ class SessionRepository {
       _db.getSessionsByTeamId(teamId);
   Future<List<Map<String, dynamic>>> getLeaderboard({int limit = 20}) =>
       _db.getLeaderboard(limit: limit);
+
+  /// Returns step ids for which the session has already unlocked clues.
+  Future<List<String>> getDiscoveredStepIds(String sessionId) =>
+      _db.getDiscoveredStepIds(sessionId);
+
+  /// Records usage of a clue for a step and increments `hints_used` once.
+  /// Returns true if this step was newly unlocked.
+  Future<bool> recordClueUsage({
+    required String sessionId,
+    required String stepId,
+    required String clueText,
+  }) =>
+      _db.recordClueUsage(sessionId: sessionId, stepId: stepId, clueText: clueText);
 }

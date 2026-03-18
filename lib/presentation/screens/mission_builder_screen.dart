@@ -41,6 +41,10 @@ class _MissionBuilderScreenState extends ConsumerState<MissionBuilderScreen> {
               steps.map((s) => _StepEdit(
                     id: s.id,
                     titleController: TextEditingController(text: s.title),
+                    descriptionController:
+                        TextEditingController(text: s.description ?? ''),
+                    clueController:
+                        TextEditingController(text: s.clueText ?? ''),
                     timeLimitSeconds: s.timeLimitSeconds,
                   )),
             );
@@ -56,6 +60,8 @@ class _MissionBuilderScreenState extends ConsumerState<MissionBuilderScreen> {
     _descriptionController.dispose();
     for (final s in _steps) {
       s.titleController.dispose();
+      s.descriptionController.dispose();
+      s.clueController.dispose();
     }
     super.dispose();
   }
@@ -65,6 +71,8 @@ class _MissionBuilderScreenState extends ConsumerState<MissionBuilderScreen> {
       _steps.add(_StepEdit(
         id: _uuid.v4(),
         titleController: TextEditingController(),
+        descriptionController: TextEditingController(),
+        clueController: TextEditingController(),
         timeLimitSeconds: null,
       ));
     });
@@ -73,6 +81,8 @@ class _MissionBuilderScreenState extends ConsumerState<MissionBuilderScreen> {
   void _removeStep(int index) {
     setState(() {
       _steps[index].titleController.dispose();
+      _steps[index].descriptionController.dispose();
+      _steps[index].clueController.dispose();
       _steps.removeAt(index);
     });
   }
@@ -103,6 +113,10 @@ class _MissionBuilderScreenState extends ConsumerState<MissionBuilderScreen> {
           title: s.titleController.text.trim().isEmpty ? 'Step ${i + 1}' : s.titleController.text.trim(),
           orderIndex: i,
           timeLimitSeconds: s.timeLimitSeconds,
+          description: s.descriptionController.text.trim(),
+          clueText: s.clueController.text.trim().isEmpty
+              ? null
+              : s.clueController.text.trim(),
         );
         await repo.addStep(step);
       }
@@ -131,6 +145,10 @@ class _MissionBuilderScreenState extends ConsumerState<MissionBuilderScreen> {
           title: s.titleController.text.trim().isEmpty ? 'Step ${i + 1}' : s.titleController.text.trim(),
           orderIndex: i,
           timeLimitSeconds: s.timeLimitSeconds,
+          description: s.descriptionController.text.trim(),
+          clueText: s.clueController.text.trim().isEmpty
+              ? null
+              : s.clueController.text.trim(),
         );
         await repo.addStep(step);
       }
@@ -227,10 +245,14 @@ class _StepEdit {
   _StepEdit({
     required this.id,
     required this.titleController,
+    required this.descriptionController,
+    required this.clueController,
     this.timeLimitSeconds,
   });
   final String id;
   final TextEditingController titleController;
+  final TextEditingController descriptionController;
+  final TextEditingController clueController;
   int? timeLimitSeconds;
 }
 
@@ -295,6 +317,30 @@ class _StepTile extends StatelessWidget {
                 DropdownMenuItem(value: 300, child: Text('5 min')),
               ],
               onChanged: onTimeLimitChanged,
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: step.descriptionController,
+              decoration: const InputDecoration(
+                labelText: 'Task / Description',
+                border: OutlineInputBorder(),
+                alignLabelWithHint: true,
+              ),
+              minLines: 2,
+              maxLines: 3,
+              textCapitalization: TextCapitalization.sentences,
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: step.clueController,
+              decoration: const InputDecoration(
+                labelText: 'Clue / Hint (optional)',
+                border: OutlineInputBorder(),
+                alignLabelWithHint: true,
+              ),
+              minLines: 2,
+              maxLines: 3,
+              textCapitalization: TextCapitalization.sentences,
             ),
           ],
         ),
