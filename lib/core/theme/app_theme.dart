@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 /// Centralized app theming. Supports light and dark mode (SharedPreferences).
 class AppTheme {
@@ -11,6 +12,19 @@ class AppTheme {
   static const _bgDark = Color(0xFF121010);
   static const _surfaceDark = Color(0xFF1E1A1A);
 
+  static TextTheme _poppinsTextTheme(TextTheme base) {
+    final t = GoogleFonts.poppinsTextTheme(base);
+    return t.copyWith(
+      headlineSmall: t.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
+      titleLarge: t.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+      titleMedium: t.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+      titleSmall: t.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+      labelLarge: t.labelLarge?.copyWith(fontWeight: FontWeight.w600),
+      bodyLarge: t.bodyLarge?.copyWith(height: 1.25),
+      bodyMedium: t.bodyMedium?.copyWith(height: 1.25),
+    );
+  }
+
   static ThemeData lightTheme() {
     final scheme = ColorScheme.fromSeed(
       seedColor: _primary,
@@ -19,7 +33,7 @@ class AppTheme {
       secondary: _accent,
       surface: Colors.white,
     );
-    return ThemeData(
+    final base = ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
       scaffoldBackgroundColor: _bgLight,
@@ -77,6 +91,10 @@ class AppTheme {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
     );
+    return base.copyWith(
+      textTheme: _poppinsTextTheme(base.textTheme),
+      primaryTextTheme: _poppinsTextTheme(base.primaryTextTheme),
+    );
   }
 
   static ThemeData darkTheme() {
@@ -87,7 +105,7 @@ class AppTheme {
       secondary: _accent,
       surface: _surfaceDark,
     );
-    return ThemeData(
+    final base = ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
       scaffoldBackgroundColor: _bgDark,
@@ -144,6 +162,10 @@ class AppTheme {
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
+    );
+    return base.copyWith(
+      textTheme: _poppinsTextTheme(base.textTheme),
+      primaryTextTheme: _poppinsTextTheme(base.primaryTextTheme),
     );
   }
 }
