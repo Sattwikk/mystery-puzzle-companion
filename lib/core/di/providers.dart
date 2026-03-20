@@ -6,6 +6,7 @@ import '../../data/repositories/achievement_repository.dart';
 import '../../data/repositories/mission_repository.dart';
 import '../../data/repositories/session_repository.dart';
 import '../../data/repositories/team_repository.dart';
+import '../../data/repositories/story_chapter_repository.dart';
 
 /// Dependency injection via Riverpod. Single source of truth for DB, preferences, repositories.
 final databaseHelperProvider = Provider<DatabaseHelper>((ref) {
@@ -39,4 +40,9 @@ final sessionRepositoryProvider = Provider<SessionRepository>((ref) {
 final achievementRepositoryProvider = Provider<AchievementRepository>((ref) {
   final db = ref.watch(databaseHelperProvider);
   return AchievementRepository(db);
+});
+
+final storyChapterRepositoryProvider = Provider<StoryChapterRepository>((ref) {
+  final db = ref.watch(databaseHelperProvider);
+  return StoryChapterRepository(db);
 });

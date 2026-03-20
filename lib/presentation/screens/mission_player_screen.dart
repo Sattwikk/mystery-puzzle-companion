@@ -6,6 +6,8 @@ import '../../core/di/providers.dart';
 import '../../core/services/notification_service.dart';
 import '../../data/models/game_session.dart';
 import '../../data/models/mission_step.dart';
+import '../../data/models/achievement.dart';
+import '../../data/models/story_chapter.dart';
 import '../providers/missions_provider.dart';
 import '../providers/sessions_provider.dart';
 import '../providers/teams_provider.dart';
@@ -88,6 +90,98 @@ class _MissionPlayerScreenState extends ConsumerState<MissionPlayerScreen> {
     }
   }
 
+  Future<void> _unlockAchievementsAndStory(GameSession completed) async {
+    final teamId = completed.teamId;
+    final now = DateTime.now();
+
+    final achievementRepo = ref.read(achievementRepositoryProvider);
+    final storyRepo = ref.read(storyChapterRepositoryProvider);
+    final sessionRepo = ref.read(sessionRepositoryProvider);
+
+    final allSessions = await sessionRepo.getSessionsByTeamId(teamId);
+    final completedCount = allSessions
+        .where((s) => s.success && s.completedAt != null)
+        .length;
+
+    Future<void> tryUnlockAchievement({
+      required String achievementId,
+      required String title,
+      required String description,
+    }) async {
+      final existing = await achievementRepo.getAchievementById(achievementId);
+      if (existing != null) return;
+      await achievementRepo.addAchievement(
+        Achievement(
+          id: achievementId,
+          title: title,
+          description: description,
+          unlockedAt: now,
+          teamId: teamId,
+        ),
+      );
+    }
+
+    // 1) First success
+    if (completedCount >= 1) {
+      await tryUnlockAchievement(
+        achievementId: '${teamId}_first_escape',
+        title: 'First Escape',
+        description: 'Your team completed their first mission.',
+      );
+    }
+
+    // 2) No-hints run
+    if (completed.hintsUsed == 0) {
+      await tryUnlockAchievement(
+        achievementId: '${teamId}_no_hints',
+        title: 'No Hints Needed',
+        description: 'Your team finished without using any hints.',
+      );
+    }
+
+    // 3) Quick run (tunable threshold)
+    final elapsed = completed.elapsedSeconds;
+    if (elapsed != null && elapsed <= 180) {
+      await tryUnlockAchievement(
+        achievementId: '${teamId}_quick_escape',
+        title: 'Quick Escape',
+        description: 'Completed the mission fast (under 3 minutes).',
+      );
+    }
+
+    // Story chapters unlock progressively with each completed mission.
+    final maxChapters = 3;
+    final unlockedChapters = completedCount.clamp(0, maxChapters);
+    for (var i = 1; i <= unlockedChapters; i++) {
+      final chapterId = '${teamId}_chapter_$i';
+      final existing = await storyRepo.getStoryChapterById(chapterId);
+      if (existing != null) continue;
+
+      final title = i == 1
+          ? 'Chapter 1: The Locked Door'
+          : i == 2
+              ? 'Chapter 2: The Missing Evidence'
+              : 'Chapter 3: The Lab’s Truth';
+
+      final description = i == 1
+          ? 'Assemble the clues and escape the study room.'
+          : i == 2
+              ? 'A new trail forms—follow the thief’s logic.'
+              : 'The system locks down… and your team finds the key.';
+
+      await storyRepo.insertStoryChapter(
+        StoryChapter(
+          id: chapterId,
+          chapterIndex: i,
+          title: title,
+          description: description,
+          unlockedAt: now,
+          teamId: teamId,
+        ),
+      );
+    }
+  }
+
   Future<void> _completeSession() async {
     if (_session == null) return;
     final repo = ref.read(sessionRepositoryProvider);
@@ -96,6 +190,9 @@ class _MissionPlayerScreenState extends ConsumerState<MissionPlayerScreen> {
       success: true,
     );
     await repo.updateSession(updated);
+
+    await _unlockAchievementsAndStory(updated);
+
     final mission = await ref.read(missionDetailProvider(_session!.missionId).future);
     if (mission != null) {
       await NotificationService.instance.showMissionCompleted(mission.title);

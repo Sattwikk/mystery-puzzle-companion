@@ -5,11 +5,13 @@ import '../../core/services/export_service.dart';
 import '../providers/missions_provider.dart';
 import '../providers/sessions_provider.dart';
 import '../providers/theme_provider.dart';
+import '../widgets/action_tile.dart';
 import '../widgets/section_card.dart';
 import 'mission_player_screen.dart';
 import 'missions_screen.dart';
 import 'teams_screen.dart';
 import 'leaderboard_screen.dart';
+import 'achievements_story_screen.dart';
 
 /// Home / Dashboard: recent sessions, quick start, leaderboard summary.
 class HomeScreen extends ConsumerWidget {
@@ -28,6 +30,14 @@ class HomeScreen extends ConsumerWidget {
             icon: const Icon(Icons.leaderboard),
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const LeaderboardScreen()),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.emoji_events_outlined),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const AchievementsStoryScreen(),
+              ),
             ),
           ),
           IconButton(
@@ -51,36 +61,41 @@ class HomeScreen extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  FilledButton.icon(
-                    onPressed: () => Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const MissionsScreen()),
-                    ),
-                    icon: const Icon(Icons.list),
-                    label: const Text('Browse Missions'),
-                  ),
-                  const SizedBox(height: 8),
-                  FilledButton.tonalIcon(
-                    onPressed: () => Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const TeamsScreen()),
-                    ),
-                    icon: const Icon(Icons.groups),
-                    label: const Text('Teams & Sessions'),
-                  ),
-                  const SizedBox(height: 8),
-                  OutlinedButton.icon(
-                    onPressed: () => Navigator.of(context).push(
+                  ActionTile(
+                    icon: Icons.play_arrow_rounded,
+                    label: 'Play a Mission',
+                    subtitle: 'Start a timed puzzle',
+                    primary: true,
+                    onTap: () => Navigator.of(context).push(
                       MaterialPageRoute(
                         builder: (_) => const MissionPlayerScreen(),
                       ),
                     ),
-                    icon: const Icon(Icons.play_arrow),
-                    label: const Text('Play a Mission'),
                   ),
-                  const SizedBox(height: 8),
-                  OutlinedButton.icon(
-                    onPressed: () => _exportData(context, ref),
-                    icon: const Icon(Icons.upload_file),
-                    label: const Text('Export data (JSON)'),
+                  const SizedBox(height: 10),
+                  ActionTile(
+                    icon: Icons.explore_rounded,
+                    label: 'Browse Missions',
+                    subtitle: 'View & edit your missions',
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const MissionsScreen()),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  ActionTile(
+                    icon: Icons.groups_rounded,
+                    label: 'Teams & Sessions',
+                    subtitle: 'Manage teams and history',
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const TeamsScreen()),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  ActionTile(
+                    icon: Icons.file_download_outlined,
+                    label: 'Export data',
+                    subtitle: 'Save missions & sessions as JSON',
+                    onTap: () => _exportData(context, ref),
                   ),
                 ],
               ),
